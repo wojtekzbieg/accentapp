@@ -1,5 +1,5 @@
-import Foundation
 import SwiftUI
+import AVFoundation
 
 // MARK: - ViewModels
 
@@ -74,9 +74,39 @@ class HomeViewModel: ObservableObject {
     }
 }
 
+enum ExerciseMode: String, CaseIterable, Identifiable {
+    case manual
+    case fixed
+    
+    var id: String { rawValue }
+    
+    var title: String {
+        switch self {
+        case .manual: return "Wpisz własny tekst"
+        case .fixed: return "Tongue Twister"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .manual:
+            return "Wpisz dowolny tekst, który chcesz wymówić i ocenić."
+        case .fixed:
+            return "Ćwicz wymowę z losowym tongue twisterem."
+        }
+    }
+}
+
 @MainActor
 class ExerciseViewModel: ObservableObject {
-    @Published var referenceText: String = ""
+    @Published var referenceText: String = "" {
+        didSet {
+            // Gdy użytkownik edytuje w manualu, zapamiętujemy ostatni tekst manualny
+            if mode == .manual {
+                lastManualText = referenceText
+            }
+        }
+    }
     @Published var isRunning: Bool = false
     @Published var scores: PronunciationScores?
     @Published var errorMessage: String?
@@ -86,12 +116,22 @@ class ExerciseViewModel: ObservableObject {
     @Published var showResults: Bool = false
     @Published var currentWordIndex: Int = 0
     @Published var showDetailedFeedback: Bool = false
+    @Published var mode: ExerciseMode = .manual {
+        didSet { applyMode(from: oldValue, to: mode) }
+    }
+    
+    // Zapamiętujemy ostatni tekst wpisany przez użytkownika w trybie manualnym
+    @Published private(set) var lastManualText: String = ""
+    
+    // Zapamiętujemy aktualny tongue twister, żeby się nie resetował przy przełączaniu trybów
+    @Published private var currentTongueTwister: String = ""
     
     private let speechService = SpeechService(
-        subscriptionKey: "subcriptionKey",
+        subscriptionKey: "DWFPsiJXdFoQmIQXt2ZDjjANXuGxhas27",
         serviceRegion: "eastus"
     )
     
+    private let speechSynthesizer = AVSpeechSynthesizer()
     private var recordingTimer: Timer?
     
     let availableLanguages = [
@@ -115,6 +155,16 @@ class ExerciseViewModel: ObservableObject {
     
     init() {
         referenceText = ""
+        lastManualText = ""
+        // startowo manual – nie narzucamy tekstu
+        applyMode(from: .manual, to: mode)
+    }
+    
+    private var randomTongueTwister: String {
+        if currentTongueTwister.isEmpty {
+            currentTongueTwister = SampleData.tongueTwisters.randomElement() ?? "The quick brown fox jumps over the lazy dog."
+        }
+        return currentTongueTwister
     }
     
     var selectedLanguageDisplayName: String {
@@ -124,6 +174,7 @@ class ExerciseViewModel: ObservableObject {
         return "🇺🇸 English (US)"
     }
     
+    // Zostawiamy do przyszłego użycia (np. przycisk "Wstaw przykładowy tekst")
     var defaultTextForLanguage: String {
         switch selectedLanguage {
         case "en-US", "en-GB":
@@ -183,7 +234,42 @@ class ExerciseViewModel: ObservableObject {
     
     func selectLanguage(_ language: String) {
         selectedLanguage = language
-        referenceText = defaultTextForLanguage
+        // W trybie manualnym nic nie zmieniamy.
+        if mode == .fixed {
+            applyMode(from: mode, to: mode)
+        }
+    }
+    
+    func selectMode(_ newMode: ExerciseMode) {
+        mode = newMode
+    }
+    
+    func getNewTongueTwister() {
+        currentTongueTwister = SampleData.tongueTwisters.randomElement() ?? "The quick brown fox jumps over the lazy dog."
+        if mode == .fixed {
+            referenceText = currentTongueTwister
+        }
+    }
+    
+    private func applyMode(from oldMode: ExerciseMode, to newMode: ExerciseMode) {
+        switch (oldMode, newMode) {
+        case (.manual, .fixed):
+            // Przechodzimy z manual -> fixed: zapamiętaj manualny tekst, a następnie ustaw tongue twister
+            lastManualText = referenceText
+            referenceText = randomTongueTwister
+            
+        case (.fixed, .manual):
+            // Wracamy do manual: przywróć ostatni tekst użytkownika (może być pusty)
+            referenceText = lastManualText
+            
+        case (.fixed, .fixed):
+            // Pozostajemy w fixed – używaj aktualnego tongue twistera (nie resetuj)
+            referenceText = currentTongueTwister.isEmpty ? randomTongueTwister : currentTongueTwister
+            
+        case (.manual, .manual):
+            // Pozostajemy w manual – nic nie zmieniaj
+            break
+        }
     }
     
     func startAssessment() {
@@ -230,6 +316,8 @@ class ExerciseViewModel: ObservableObject {
         currentWordIndex = 0
         showDetailedFeedback = false
         stopRecordingTimer()
+        // Zachowujemy tekst zgodnie z trybem
+        applyMode(from: mode, to: mode)
     }
     
     func selectWord(at index: Int) {
@@ -242,7 +330,6 @@ class ExerciseViewModel: ObservableObject {
         if currentWordIndex < words.count - 1 {
             currentWordIndex += 1
         } else {
-            // Loop to first word when at last word
             currentWordIndex = 0
         }
     }
@@ -252,7 +339,6 @@ class ExerciseViewModel: ObservableObject {
         if currentWordIndex > 0 {
             currentWordIndex -= 1
         } else {
-            // Loop to last word when at first word
             currentWordIndex = words.count - 1
         }
     }
@@ -286,6 +372,27 @@ class ExerciseViewModel: ObservableObject {
         recordingTimer = nil
     }
     
+    func playTextToSpeech(text: String? = nil, language: String? = nil, rate: Float? = nil) {
+        // Stop any current speech
+        speechSynthesizer.stopSpeaking(at: .immediate)
+        
+        // Use provided text or fall back to referenceText
+        let textToSpeak = (text ?? referenceText).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !textToSpeak.isEmpty else { return }
+        
+        // Create speech utterance
+        let utterance = AVSpeechUtterance(string: textToSpeak)
+        
+        // Set voice based on provided language or selected language
+        utterance.voice = AVSpeechSynthesisVoice(language: language ?? selectedLanguage)
+        
+        // Set speech rate (provided rate, default slower rate, or system default)
+        utterance.rate = rate ?? AVSpeechUtteranceDefaultSpeechRate
+        
+        // Speak the text
+        speechSynthesizer.speak(utterance)
+    }
+    
     deinit {
         Task { @MainActor in
             stopRecordingTimer()
@@ -315,3 +422,24 @@ class MainViewModel: ObservableObject {
         selectedTab = tab
     }
 }
+
+@MainActor
+class LearningViewModel: ObservableObject {
+    private let speechSynthesizer = AVSpeechSynthesizer()
+    
+    let ipaSymbols: [IPASymbol] = SampleData.ipaSymbols
+    
+    func playSymbol(_ symbol: IPASymbol) {
+        // Stop any current speech
+        speechSynthesizer.stopSpeaking(at: .immediate)
+        
+        // Create speech utterance
+        let utterance = AVSpeechUtterance(string: symbol.pronunciation)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = 0.4 // Slower for learning
+        
+        // Speak the pronunciation
+        speechSynthesizer.speak(utterance)
+    }
+}
+

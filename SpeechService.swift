@@ -31,7 +31,7 @@ final class SpeechService: NSObject {
     private let serviceRegion: String
 
     init(subscriptionKey: String, serviceRegion: String) {
-        self.subscriptionKey = subscriptionKey
+        self.subscriptionKey = 	
         self.serviceRegion = serviceRegion
         super.init()
     }

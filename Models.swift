@@ -60,6 +60,7 @@ enum FeatureAction {
 enum TabItem: String, CaseIterable {
     case home = "Home"
     case exercises = "Ćwiczenia"
+    case learning = "Nauka"
     case ranking = "Ranking"
     case profile = "Profil"
     
@@ -67,8 +68,17 @@ enum TabItem: String, CaseIterable {
         switch self {
         case .home: return "house.fill"
         case .exercises: return "book.fill"
+        case .learning: return "graduationcap.fill"
         case .ranking: return "crown.fill"
         case .profile: return "person.fill"
         }
     }
+}
+
+struct IPASymbol {
+    let symbol: String
+    let description: String
+    let example: String
+    let pronunciation: String
+    let phoneticTranscription: String
 }

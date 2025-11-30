@@ -87,10 +87,12 @@ struct MainView: View {
             HomeView()
         case .exercises:
             ExerciseView()
+        case .learning:
+            LearningView()
         case .ranking:
-            Text("Ranking")
+            RankingView()
         case .profile:
-            Text("Profil")
+            ProfileView()
         }
     }
 }
@@ -119,9 +121,12 @@ struct HomeView: View {
                     }
                     
                     if let session = viewModel.lastSession {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("Ostatnia sesja")
                                 .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.primary)
+                            
                             HStack {
                                 Label("Wymowa: \(session.pronunciationScore)%", systemImage: "checkmark.seal.fill")
                                 Spacer()
@@ -129,9 +134,48 @@ struct HomeView: View {
                             }
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .padding()
-                            .background(.thinMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(
+                                ZStack {
+                                    // Liquid Glass background
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(.ultraThinMaterial)
+                                        .opacity(0.7)
+                                    
+                                    // Subtle gradient overlay
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    .white.opacity(0.08),
+                                                    .clear,
+                                                    .white.opacity(0.03)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                }
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [
+                                                .white.opacity(0.4),
+                                                .white.opacity(0.05),
+                                                .clear
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1
+                                    )
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+                            .shadow(color: .black.opacity(0.03), radius: 1, x: 0, y: 1)
                         }
                     }
                     
@@ -139,7 +183,14 @@ struct HomeView: View {
                 }
                 .padding()
             }
-            .background(Color(.systemGroupedBackground))
+            .background(
+                LinearGradient(
+                    colors: [.purple.opacity(0.1), .blue.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            )
             .navigationTitle("Say it right!")
         }
     }
@@ -150,31 +201,76 @@ struct FeatureButton: View {
     let icon: String
     let tint: Color
     let action: () -> Void
+    @State private var isPressed = false
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(16)
-                    .background(tint)
-                    .clipShape(Circle())
+                    .padding(18)
+                    .background(
+                        Circle()
+                            .fill(tint)
+                        // TA LINIA NIŻEJ ROBI FAJNY EFEKT
+                            .shadow(color: tint.opacity(0.3), radius: 8, x: 0, y: 4)
+                    )
 
                 Text(title)
-                    .font(.subheadline).bold()
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
                     .foregroundStyle(.primary)
             }
-            .frame(maxWidth: .infinity, minHeight: 110)
-            .padding(12)
-            .background(.background)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(.quaternary, lineWidth: 1)
+            .frame(maxWidth: .infinity, minHeight: 120)
+            .padding(16)
+            .background(
+                ZStack {
+                    // Liquid Glass background
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .opacity(0.8)
+                    
+                    // Subtle gradient overlay
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.1),
+                                    .clear,
+                                    .white.opacity(0.05)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
             )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.6),
+                                .white.opacity(0.1),
+                                .clear
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
+            .shadow(color: .black.opacity(0.05), radius: 1, x: 0, y: 1)
+            .scaleEffect(isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: isPressed)
         }
+        .buttonStyle(PlainButtonStyle())
+        .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
+            isPressed = pressing
+        }, perform: {})
     }
 }
 
@@ -201,6 +297,64 @@ struct ContentView: View {
 
 #Preview("Home") {
     MainView()
+}
+
+struct RankingView: View {
+    var body: some View {
+        NavigationView {
+            VStack {
+                Text("Ranking")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text("Wkrótce...")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 20)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                LinearGradient(
+                    colors: [.purple.opacity(0.1), .blue.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            )
+            .navigationTitle("Ranking")
+            .navigationBarTitleDisplayMode(.large)
+        }
+    }
+}
+
+struct ProfileView: View {
+    var body: some View {
+        NavigationView {
+            VStack {
+                Text("Profil")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text("Wkrótce...")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 20)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                LinearGradient(
+                    colors: [.purple.opacity(0.1), .blue.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            )
+            .navigationTitle("Profil")
+            .navigationBarTitleDisplayMode(.large)
+        }
+    }
 }
 
 #Preview("Full App") {

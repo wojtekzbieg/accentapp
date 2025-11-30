@@ -5,69 +5,63 @@ struct ExerciseView: View {
     @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
-            ZStack {
-                // Background
-                Color(.systemBackground)
-                .ignoresSafeArea()
+        ZStack {
+            // Background
+            LinearGradient(
+                colors: [.purple.opacity(0.1), .blue.opacity(0.1)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                Text("Practice Your Pronunciation")
+                    .font(.largeTitle)
+                    .fontWeight(.heavy)
+                    .foregroundColor(.primary)
+                    .padding(.top, 30)
+                    .padding(.leading, 25)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 
-                VStack(spacing: 0) {
-                    // Header
-//                    headerSection
-                    Text("Practice Your Pronunciation")
-                        .font(.largeTitle)
-                        .fontWeight(.heavy)
-                        .foregroundColor(.primary)
-                        .padding(.top, 30)
-                        .padding(.leading, 25)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    // Main content
-                    if viewModel.scores == nil {
-                        practiceView
-                    } else {
-                        feedbackView
-                    }
+                // Mode picker
+                modePicker
+                    .padding(.top, 10)
+                
+                // Main content
+                if viewModel.scores == nil {
+                    practiceView
+                } else {
+                    feedbackView
                 }
+            }
         }
-        .onDisappear { 
+        .onDisappear {
             viewModel.resetAssessment()
         }
     }
     
-    // MARK: - Header Section
-    private var headerSection: some View {
-        HStack {
-            Button(action: {
-                // Settings action
-            }) {
-                Image(systemName: "gearshape")
-                    .font(.title2)
-                    .foregroundColor(.white)
+    // MARK: - Mode Picker
+    private var modePicker: some View {
+        Picker("Tryb", selection: Binding(
+            get: { viewModel.mode },
+            set: { newMode in
+                isTextFieldFocused = false
+                viewModel.selectMode(newMode)
             }
-        
-            Spacer()
-            
-            Text("Practice Your Pronunciation")
-                .font(.headline)
-                .foregroundColor(.white)
-            
-            Spacer()
-            
-            Button(action: {
-                // Close action
-            }) {
-                Image(systemName: "xmark")
-                    .font(.title2)
-                    .foregroundColor(.white)
-            }
+        )) {
+            Text(ExerciseMode.manual.title).tag(ExerciseMode.manual)
+            Text(ExerciseMode.fixed.title).tag(ExerciseMode.fixed)
         }
+        .pickerStyle(.segmented)
         .padding(.horizontal, 20)
-        .padding(.top, 10)
+        .padding(.top, 16)
+        .accessibilityIdentifier("exerciseModePicker")
     }
     
     // MARK: - Practice View
     private var practiceView: some View {
-        VStack(spacing: 30) {
+        VStack(spacing: isTextFieldFocused ? 20 : 30) {
             Spacer()
             
             // Coach message (hidden when keyboard is open)
@@ -80,17 +74,18 @@ struct ExerciseView: View {
             // Text input section
             textInputSection
             
-            // Audio controls
-            audioControlsView
+            // Audio controls (hidden when keyboard is open)
+            if !isTextFieldFocused {
+                audioControlsView
+            }
             
             Spacer()
             
-            // Record button
+            // Record button – zawsze widoczny, ale wyżej gdy klawiatura otwarta
             recordButton
-            
+                .padding(.bottom, isTextFieldFocused ? 20 : 40)
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 40)
     }
     
     // MARK: - Feedback View
@@ -112,7 +107,8 @@ struct ExerciseView: View {
                     },
                     onWordSelected: { index in
                         viewModel.selectWord(at: index)
-                    }
+                    },
+                    viewModel: viewModel
                 )
             } else {
                 OverallFeedbackView(
@@ -122,7 +118,8 @@ struct ExerciseView: View {
                     },
                     onWordTap: { index in
                         viewModel.selectWord(at: index)
-                    }
+                    },
+                    viewModel: viewModel
                 )
             }
         }
@@ -135,13 +132,15 @@ struct ExerciseView: View {
                 .font(.subheadline)
                 .foregroundColor(.green)
             
-            HStack {
-                Text("Let's begin! Record yourself saying the phrase below.")
+            HStack(alignment: .center, spacing: 15) {
+                Text(coachMessageText)
                     .font(.body)
                     .foregroundColor(.white)
-                    
-                Spacer()
-                    
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+                
                 Circle()
                     .fill(Color.gray)
                     .frame(width: 40, height: 40)
@@ -149,13 +148,21 @@ struct ExerciseView: View {
                         Image(systemName: "person.fill")
                             .foregroundColor(.white)
                     )
-                }
             }
-            .padding()
-            .background(Color.gray.opacity(0.2))
-            .cornerRadius(12)
+        }
+        .padding()
+        .background(Color.gray.opacity(0.2))
+        .cornerRadius(12)
     }
     
+    private var coachMessageText: String {
+        switch viewModel.mode {
+        case .manual:
+            return "Let's begin! Record yourself saying the phrase below."
+        case .fixed:
+            return "Powtarzaj tongue twister poniżej. To świetne ćwiczenie na wymowę!"
+        }
+    }
     
     // MARK: - Text Input Section
     private var textInputSection: some View {
@@ -166,7 +173,7 @@ struct ExerciseView: View {
                     .fontWeight(.medium)
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
-                    .lineLimit(2...4)
+//                    .lineLimit(2...4)
                     .padding()
                     .background(Color.clear)
                     .overlay(
@@ -178,11 +185,12 @@ struct ExerciseView: View {
                     .focused($isTextFieldFocused)
                     .submitLabel(.done)
                     .onSubmit {
-                        // Hide keyboard when Return/Done is pressed
                         isTextFieldFocused = false
                     }
+                    .disabled(viewModel.mode == .fixed)
+                    .opacity(viewModel.mode == .fixed ? 0.85 : 1.0)
                 
-                if viewModel.referenceText.isEmpty && !isTextFieldFocused {
+                if viewModel.referenceText.isEmpty && !isTextFieldFocused && viewModel.mode == .manual {
                     Text("Enter text to practice...")
                         .font(.title2)
                         .fontWeight(.medium)
@@ -196,17 +204,42 @@ struct ExerciseView: View {
     
     // MARK: - Audio Controls
     private var audioControlsView: some View {
-        Button(action: {
-            // Play reference audio
-        }) {
-            Image(systemName: "speaker.wave.2.fill")
-                .font(.title)
-                .foregroundColor(.white)
-                .padding(16)
-                .background(Color.gray.opacity(0.3))
-                .clipShape(Circle())
+        HStack(spacing: 0) {
+            // Play button (lewa strona)
+            Button(action: {
+                viewModel.playTextToSpeech()
+            }) {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .padding(10)
+            }
+            
+            // Separator line (tylko w trybie fixed)
+            if viewModel.mode == .fixed {
+                Rectangle()
+                    .fill(Color.white.opacity(0.3))
+                    .frame(width: 1, height: 25)
+                    .padding(.horizontal, 8)
+                
+                // Shuffle button (prawa strona)
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        viewModel.getNewTongueTwister()
+                    }
+                }) {
+                    Image(systemName: "shuffle")
+                        .font(.title)
+                        .foregroundColor(.white)
+                        .padding(10)
+                }
+            }
         }
+        .padding(4)
+        .background(Color.gray.opacity(0.2))
+        .clipShape(Capsule())
     }
+    
     
     // MARK: - Record Button
     private var recordButton: some View {
@@ -218,28 +251,28 @@ struct ExerciseView: View {
             }
         }) {
             ZStack {
-                Circle()
-                    .fill(
-                        viewModel.isButtonDisabled ? 
-                        LinearGradient(colors: [.gray, .gray], startPoint: .topLeading, endPoint: .bottomTrailing) :
-                        LinearGradient(colors: [.pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .frame(width: 80, height: 80)
+                if viewModel.isButtonDisabled {
+                    Circle()
+                        .fill(LinearGradient(colors: [.gray, .gray], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 80, height: 80)
+                } else {
+                    Circle()
+                        .fill(LinearGradient(colors: [.pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .shadow(color: .pink.opacity(0.2), radius: 12, x: -3, y: -6)
+                        .shadow(color: .orange.opacity(0.2), radius: 12, x: 3, y: 6)
+                        .frame(width: 80, height: 80)
+                }
                 
                 Image(systemName: viewModel.isRunning ? "stop.fill" : "mic.fill")
                     .font(.title)
                     .foregroundColor(.white)
             }
+            .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
         }
         .disabled(viewModel.isButtonDisabled)
         .scaleEffect(viewModel.isRunning ? 1.1 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: viewModel.isRunning)
     }
-    
-    
-    
-    
-    
 }
 
 #Preview {
